@@ -1,4 +1,5 @@
 # ui/radar.py
+import asyncio
 from textual.widget import Widget
 from textual.widgets import DataTable, Label
 from textual.app import ComposeResult
@@ -43,6 +44,7 @@ class RadarScreen(Widget):
         self._jsonl = logger
         self._session_id = session_id
         self._scan_interval = scan_interval
+        self._scan_count = 0
 
     def compose(self) -> ComposeResult:
         yield Label("GPS: waiting for fix", id="gps-status")
@@ -77,9 +79,13 @@ class RadarScreen(Widget):
 
     async def _do_scan(self) -> None:
         try:
+            self._scan_count += 1
+            self.query_one("#gps-status", Label).update(f"Scanning... #{self._scan_count}")
+            loop = asyncio.get_event_loop()
             gps = self._gps.current_location
-            wifi_events = self._wifi.scan(gps=gps)
-            bt_events = self._bt.scan(gps=gps)
+            wifi_events = await loop.run_in_executor(None, lambda: self._wifi.scan(gps=gps))
+            bt_events = await loop.run_in_executor(None, lambda: self._bt.scan(gps=gps))
+            self.query_one("#gps-status", Label).update(f"Scan #{self._scan_count} — {len(wifi_events.appeared)} new")
 
             for net in wifi_events.appeared:
                 self._db.insert_wifi(self._session_id, net)
