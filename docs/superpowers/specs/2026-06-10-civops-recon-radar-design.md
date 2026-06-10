@@ -21,6 +21,7 @@ Five layers, each with one job:
 ```
 civops/
 ├── civops.py               # entry point — detects backend, launches Textual app
+├── requirements.txt        # textual; all other deps are stdlib
 ├── backends/
 │   ├── base.py             # abstract interface: scan_wifi, scan_bluetooth, get_location
 │   ├── termux.py           # Termux API backend (Android) — shells out to termux-api CLI
