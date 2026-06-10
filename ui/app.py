@@ -39,19 +39,73 @@ class CivopsApp(App):
         self._wifi_scanner = WiFiScanner(backend)
         self._bt_scanner = BTScanner(backend)
         self._gps_scanner = GPSScanner(backend)
+        self._scan_count = 0
 
     def compose(self) -> ComposeResult:
         with TabbedContent(initial="radar"):
             with TabPane("RADAR", id="radar"):
-                yield RadarScreen(
-                    self._wifi_scanner, self._bt_scanner, self._gps_scanner,
-                    self._db, self._jsonl, self._session_id, self._scan_interval,
-                )
+                yield RadarScreen()
             with TabPane("LOG", id="log"):
                 yield LogScreen()
             with TabPane("MAP", id="map"):
                 yield MapScreen(self._db, self._session_id)
         yield Footer()
+
+    def on_mount(self) -> None:
+        self.set_interval(self._scan_interval, self._do_scan)
+        self.set_interval(3.0, self._do_gps_poll)
+        self.notify("App ready — scanning started", timeout=3)
+
+    def _do_gps_poll(self) -> None:
+        try:
+            loc = self._gps_scanner.poll()
+            if loc:
+                self._db.insert_gps(self._session_id, loc)
+                self._jsonl.log_gps(loc)
+                try:
+                    self.query_one(RadarScreen).update_gps(loc)
+                except Exception:
+                    pass
+        except Exception as e:
+            self.notify(f"GPS error: {e}", severity="warning", timeout=5)
+
+    def _do_scan(self) -> None:
+        try:
+            self._scan_count += 1
+            gps = self._gps_scanner.current_location
+            wifi_events = self._wifi_scanner.scan(gps=gps)
+            bt_events = self._bt_scanner.scan(gps=gps)
+
+            for net in wifi_events.appeared:
+                self._db.insert_wifi(self._session_id, net)
+                self._jsonl.log_wifi(net)
+                self.add_log_event(
+                    f"[+WIFI] {net.ssid} {net.bssid} {net.rssi}dBm {net.capabilities[:8]}"
+                )
+            for net in wifi_events.disappeared:
+                self.add_log_event(f"[-WIFI] {net.ssid} last seen {net.rssi}dBm")
+            for net in wifi_events.updated:
+                self.add_log_event(f"[RSSI] {net.ssid} → {net.rssi}dBm")
+            for device in bt_events.appeared:
+                self._db.insert_bt(self._session_id, device)
+                self._jsonl.log_bt(device)
+                tag = "BLE" if device.device_type == "BLE" else "BT"
+                self.add_log_event(
+                    f"[+{tag}] {device.name} {device.address} {device.rssi}dBm"
+                )
+            for device in bt_events.disappeared:
+                self.add_log_event(f"[-BT] {device.name} last seen {device.rssi}dBm")
+
+            try:
+                self.query_one(RadarScreen).refresh_tables(
+                    self._wifi_scanner.current,
+                    self._bt_scanner.current,
+                    self._scan_count,
+                )
+            except Exception:
+                pass
+        except Exception as e:
+            self.notify(f"Scan error: {e}", severity="error", timeout=8)
 
     def action_switch_tab(self, tab_id: str) -> None:
         self.query_one(TabbedContent).active = tab_id
