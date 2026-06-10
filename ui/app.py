@@ -100,14 +100,16 @@ class CivopsApp(App):
             for device in bt_events.disappeared:
                 self.add_log_event(f"[-BT] {device.name} last seen {device.rssi}dBm")
 
+            wifi_now = self._wifi_scanner.current
+            self.notify(f"Scan #{self._scan_count}: {len(wifi_now)} networks found", timeout=4)
             try:
                 self.query_one(RadarScreen).refresh_tables(
-                    self._wifi_scanner.current,
+                    wifi_now,
                     self._bt_scanner.current,
                     self._scan_count,
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                self.notify(f"Refresh error: {e}", severity="error", timeout=8)
         except Exception as e:
             self.notify(f"Scan error: {e}", severity="error", timeout=8)
 
