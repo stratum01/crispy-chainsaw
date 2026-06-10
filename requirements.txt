@@ -1,2 +1,2 @@
-textual>=0.50
+textual>=0.50,<1.0
 pytest>=7.0
