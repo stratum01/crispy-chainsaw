@@ -33,7 +33,7 @@ class CivopsApp(App):
         super().__init__()
         self._backend = backend
         self._db = db
-        self._logger = logger
+        self._jsonl = logger
         self._session_id = session_id
         self._scan_interval = scan_interval
         self._wifi_scanner = WiFiScanner(backend)
@@ -45,7 +45,7 @@ class CivopsApp(App):
             with TabPane("RADAR", id="radar"):
                 yield RadarScreen(
                     self._wifi_scanner, self._bt_scanner, self._gps_scanner,
-                    self._db, self._logger, self._session_id, self._scan_interval,
+                    self._db, self._jsonl, self._session_id, self._scan_interval,
                 )
             with TabPane("LOG", id="log"):
                 yield LogScreen()

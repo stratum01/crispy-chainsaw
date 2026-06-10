@@ -40,7 +40,7 @@ class RadarScreen(Widget):
         self._bt = bt_scanner
         self._gps = gps_scanner
         self._db = db
-        self._logger = logger
+        self._jsonl = logger
         self._session_id = session_id
         self._scan_interval = scan_interval
 
@@ -66,7 +66,7 @@ class RadarScreen(Widget):
                 f"GPS: {loc.lat:.4f},{loc.lon:.4f} ±{loc.accuracy:.0f}m"
             )
             self._db.insert_gps(self._session_id, loc)
-            self._logger.log_gps(loc)
+            self._jsonl.log_gps(loc)
 
     def _do_scan(self) -> None:
         gps = self._gps.current_location
@@ -75,7 +75,7 @@ class RadarScreen(Widget):
 
         for net in wifi_events.appeared:
             self._db.insert_wifi(self._session_id, net)
-            self._logger.log_wifi(net)
+            self._jsonl.log_wifi(net)
             self.app.add_log_event(
                 f"[+WIFI] {net.ssid} {net.bssid} {net.rssi}dBm {net.capabilities[:8]}"
             )
@@ -88,7 +88,7 @@ class RadarScreen(Widget):
 
         for device in bt_events.appeared:
             self._db.insert_bt(self._session_id, device)
-            self._logger.log_bt(device)
+            self._jsonl.log_bt(device)
             tag = "BLE" if device.device_type == "BLE" else "BT"
             self.app.add_log_event(
                 f"[+{tag}] {device.name} {device.address} {device.rssi}dBm"
