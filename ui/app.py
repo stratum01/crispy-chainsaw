@@ -1,4 +1,5 @@
 # ui/app.py
+import asyncio
 from textual.app import App, ComposeResult
 from textual.widgets import TabbedContent, TabPane, Footer
 from backends.base import BaseBackend
@@ -56,9 +57,10 @@ class CivopsApp(App):
         self.set_interval(3.0, self._do_gps_poll)
         self.notify("App ready — scanning started", timeout=3)
 
-    def _do_gps_poll(self) -> None:
+    async def _do_gps_poll(self) -> None:
         try:
-            loc = self._gps_scanner.poll()
+            loop = asyncio.get_running_loop()
+            loc = await loop.run_in_executor(None, self._gps_scanner.poll)
             if loc:
                 self._db.insert_gps(self._session_id, loc)
                 self._jsonl.log_gps(loc)
@@ -69,12 +71,14 @@ class CivopsApp(App):
         except Exception as e:
             self.notify(f"GPS error: {e}", severity="warning", timeout=5)
 
-    def _do_scan(self) -> None:
+    async def _do_scan(self) -> None:
         try:
             self._scan_count += 1
+            self.notify(f"Scan #{self._scan_count}...", timeout=4)
+            loop = asyncio.get_running_loop()
             gps = self._gps_scanner.current_location
-            wifi_events = self._wifi_scanner.scan(gps=gps)
-            bt_events = self._bt_scanner.scan(gps=gps)
+            wifi_events = await loop.run_in_executor(None, lambda: self._wifi_scanner.scan(gps=gps))
+            bt_events = await loop.run_in_executor(None, lambda: self._bt_scanner.scan(gps=gps))
 
             for net in wifi_events.appeared:
                 self._db.insert_wifi(self._session_id, net)
