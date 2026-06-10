@@ -10,9 +10,12 @@ _BT_TYPE_MAP = {1: "Classic", 2: "BLE", 3: "BLE"}
 
 class TermuxBackend(BaseBackend):
     def scan_wifi(self) -> list[WiFiNetwork]:
-        result = subprocess.run(
-            ["termux-wifi-scaninfo"], capture_output=True, text=True
-        )
+        try:
+            result = subprocess.run(
+                ["termux-wifi-scaninfo"], capture_output=True, text=True
+            )
+        except FileNotFoundError:
+            return []
         if result.returncode != 0:
             return []
         networks = []
@@ -30,9 +33,12 @@ class TermuxBackend(BaseBackend):
         return networks
 
     def scan_bluetooth(self) -> list[BTDevice]:
-        result = subprocess.run(
-            ["termux-bluetooth-scan", "-d", "4"], capture_output=True, text=True
-        )
+        try:
+            result = subprocess.run(
+                ["termux-bluetooth-scan", "-d", "4"], capture_output=True, text=True
+            )
+        except FileNotFoundError:
+            return []
         if result.returncode != 0:
             return []
         devices = []
@@ -50,9 +56,12 @@ class TermuxBackend(BaseBackend):
         return devices
 
     def get_location(self) -> GPSLocation | None:
-        result = subprocess.run(
-            ["termux-location", "-p", "gps"], capture_output=True, text=True
-        )
+        try:
+            result = subprocess.run(
+                ["termux-location", "-p", "gps"], capture_output=True, text=True
+            )
+        except FileNotFoundError:
+            return None
         if result.returncode != 0 or not result.stdout.strip():
             return None
         try:
