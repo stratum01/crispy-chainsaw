@@ -125,13 +125,14 @@ def test_linux_scan_wifi_returns_empty_on_timeout():
 
 
 def test_linux_scan_bluetooth_returns_bt_devices():
-    mock_dev = MagicMock()
-    mock_dev.name = "TestPhone"
-    mock_dev.address = "AA:BB:CC:DD:EE:FF"
-    mock_dev.rssi = -62
+    mock_device = MagicMock()
+    mock_device.name = "TestPhone"
+    mock_device.address = "AA:BB:CC:DD:EE:FF"
+    mock_adv = MagicMock()
+    mock_adv.rssi = -62
     with patch("backends.linux.BleakScanner.discover",
                new_callable=AsyncMock) as mock_disc:
-        mock_disc.return_value = [mock_dev]
+        mock_disc.return_value = {"AA:BB:CC:DD:EE:FF": (mock_device, mock_adv)}
         results = LinuxBackend().scan_bluetooth()
     assert len(results) == 1
     assert isinstance(results[0], BTDevice)
@@ -143,13 +144,14 @@ def test_linux_scan_bluetooth_returns_bt_devices():
 
 
 def test_linux_scan_bluetooth_none_name_becomes_unknown():
-    mock_dev = MagicMock()
-    mock_dev.name = None
-    mock_dev.address = "BB:CC:DD:EE:FF:00"
-    mock_dev.rssi = -75
+    mock_device = MagicMock()
+    mock_device.name = None
+    mock_device.address = "BB:CC:DD:EE:FF:00"
+    mock_adv = MagicMock()
+    mock_adv.rssi = -75
     with patch("backends.linux.BleakScanner.discover",
                new_callable=AsyncMock) as mock_disc:
-        mock_disc.return_value = [mock_dev]
+        mock_disc.return_value = {"BB:CC:DD:EE:FF:00": (mock_device, mock_adv)}
         results = LinuxBackend().scan_bluetooth()
     assert results[0].name == "(unknown)"
 
@@ -162,13 +164,14 @@ def test_linux_scan_bluetooth_returns_empty_on_exception():
 
 
 def test_linux_scan_bluetooth_none_rssi_defaults_to_minus_80():
-    mock_dev = MagicMock()
-    mock_dev.name = "UnknownRSSI"
-    mock_dev.address = "CC:DD:EE:FF:00:11"
-    mock_dev.rssi = None
+    mock_device = MagicMock()
+    mock_device.name = "UnknownRSSI"
+    mock_device.address = "CC:DD:EE:FF:00:11"
+    mock_adv = MagicMock()
+    mock_adv.rssi = None
     with patch("backends.linux.BleakScanner.discover",
                new_callable=AsyncMock) as mock_disc:
-        mock_disc.return_value = [mock_dev]
+        mock_disc.return_value = {"CC:DD:EE:FF:00:11": (mock_device, mock_adv)}
         results = LinuxBackend().scan_bluetooth()
     assert results[0].rssi == -80
 

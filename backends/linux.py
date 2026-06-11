@@ -57,19 +57,19 @@ class LinuxBackend(BaseBackend):
         try:
             loop = asyncio.new_event_loop()
             try:
-                ble_devices = loop.run_until_complete(
-                    BleakScanner.discover(timeout=3.0)
+                ble_results = loop.run_until_complete(
+                    BleakScanner.discover(timeout=3.0, return_adv=True)
                 )
             finally:
                 loop.close()
         except Exception:
             return []
         devices = []
-        for d in ble_devices:
+        for device, adv in ble_results.values():
             devices.append(BTDevice(
-                name=d.name or "(unknown)",
-                address=d.address,
-                rssi=d.rssi if d.rssi is not None else -80,
+                name=device.name or "(unknown)",
+                address=device.address,
+                rssi=adv.rssi if adv.rssi is not None else -80,
                 device_type="BLE",
                 manufacturer=None,
                 lat=None,
