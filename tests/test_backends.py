@@ -122,3 +122,44 @@ def test_linux_scan_wifi_returns_empty_on_timeout():
     with patch("backends.linux.subprocess.run",
                side_effect=subprocess.TimeoutExpired(cmd="nmcli", timeout=15)):
         assert LinuxBackend().scan_wifi() == []
+
+
+def test_linux_scan_bluetooth_returns_bt_devices():
+    mock_dev = MagicMock()
+    mock_dev.name = "TestPhone"
+    mock_dev.address = "AA:BB:CC:DD:EE:FF"
+    mock_dev.rssi = -62
+    with patch("backends.linux.BleakScanner.discover",
+               new_callable=AsyncMock) as mock_disc:
+        mock_disc.return_value = [mock_dev]
+        results = LinuxBackend().scan_bluetooth()
+    assert len(results) == 1
+    assert isinstance(results[0], BTDevice)
+    assert results[0].name == "TestPhone"
+    assert results[0].address == "AA:BB:CC:DD:EE:FF"
+    assert results[0].rssi == -62
+    assert results[0].device_type == "BLE"
+    assert results[0].manufacturer is None
+
+
+def test_linux_scan_bluetooth_none_name_becomes_unknown():
+    mock_dev = MagicMock()
+    mock_dev.name = None
+    mock_dev.address = "BB:CC:DD:EE:FF:00"
+    mock_dev.rssi = -75
+    with patch("backends.linux.BleakScanner.discover",
+               new_callable=AsyncMock) as mock_disc:
+        mock_disc.return_value = [mock_dev]
+        results = LinuxBackend().scan_bluetooth()
+    assert results[0].name == "(unknown)"
+
+
+def test_linux_scan_bluetooth_returns_empty_on_exception():
+    with patch("backends.linux.BleakScanner.discover",
+               new_callable=AsyncMock) as mock_disc:
+        mock_disc.side_effect = Exception("No BT adapter")
+        assert LinuxBackend().scan_bluetooth() == []
+
+
+def test_linux_get_location_returns_none():
+    assert LinuxBackend().get_location() is None

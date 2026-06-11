@@ -1,9 +1,11 @@
 # backends/linux.py
+import asyncio
 import re
 import subprocess
 from datetime import datetime
 from backends.base import BaseBackend
 from models import WiFiNetwork, BTDevice, GPSLocation
+from bleak import BleakScanner
 
 
 def _signal_to_rssi(signal_pct: int) -> int:
@@ -52,7 +54,29 @@ class LinuxBackend(BaseBackend):
         return networks
 
     def scan_bluetooth(self) -> list[BTDevice]:
-        raise NotImplementedError("implement in Task 2")
+        try:
+            loop = asyncio.new_event_loop()
+            try:
+                ble_devices = loop.run_until_complete(
+                    BleakScanner.discover(timeout=3.0)
+                )
+            finally:
+                loop.close()
+        except Exception:
+            return []
+        devices = []
+        for d in ble_devices:
+            devices.append(BTDevice(
+                name=d.name or "(unknown)",
+                address=d.address,
+                rssi=d.rssi if d.rssi is not None else -80,
+                device_type="BLE",
+                manufacturer=None,
+                lat=None,
+                lon=None,
+                timestamp=datetime.now(),
+            ))
+        return devices
 
     def get_location(self) -> GPSLocation | None:
-        raise NotImplementedError("implement in Task 2")
+        return None
