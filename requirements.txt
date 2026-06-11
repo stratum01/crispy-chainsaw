@@ -1,3 +1,4 @@
 textual>=0.50,<1.0
 flask>=3.0
 pytest>=7.0
+bleak>=0.21

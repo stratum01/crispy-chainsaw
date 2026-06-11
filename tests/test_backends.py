@@ -1,7 +1,8 @@
 # tests/test_backends.py
 import json
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock, MagicMock
 from backends.termux import TermuxBackend
+from backends.linux import LinuxBackend
 from models import WiFiNetwork, BTDevice, GPSLocation
 
 WIFI_JSON = json.dumps([{
@@ -65,3 +66,52 @@ def test_termux_scan_wifi_returns_empty_on_failure():
         mock_run.return_value.stdout = ""
         results = TermuxBackend().scan_wifi()
     assert results == []
+
+
+_NMCLI_THREE_NETS = (
+    "HOME-NET:bc\\:ae\\:c5\\:12\\:34\\:56:85:WPA2\n"
+    ":dd\\:ee\\:ff\\:00\\:11\\:22:60:WPA1 WPA2\n"
+    "OpenWifi:11\\:22\\:33\\:44\\:55\\:66:40:\n"
+)
+
+
+def test_linux_scan_wifi_returns_wifi_networks():
+    with patch("backends.linux.subprocess.run") as mock_run:
+        mock_run.return_value.stdout = _NMCLI_THREE_NETS
+        mock_run.return_value.returncode = 0
+        results = LinuxBackend().scan_wifi()
+    assert len(results) == 3
+    assert isinstance(results[0], WiFiNetwork)
+    assert results[0].ssid == "HOME-NET"
+    assert results[0].bssid == "bc:ae:c5:12:34:56"
+    assert results[0].rssi == -58   # int(85 * 0.5) - 100
+    assert results[0].capabilities == "WPA2"
+
+
+def test_linux_scan_wifi_hidden_ssid():
+    with patch("backends.linux.subprocess.run") as mock_run:
+        mock_run.return_value.stdout = ":dd\\:ee\\:ff\\:00\\:11\\:22:60:WPA1 WPA2\n"
+        mock_run.return_value.returncode = 0
+        results = LinuxBackend().scan_wifi()
+    assert results[0].ssid == ""
+    assert results[0].bssid == "dd:ee:ff:00:11:22"
+
+
+def test_linux_scan_wifi_open_network():
+    with patch("backends.linux.subprocess.run") as mock_run:
+        mock_run.return_value.stdout = "OpenWifi:11\\:22\\:33\\:44\\:55\\:66:40:\n"
+        mock_run.return_value.returncode = 0
+        results = LinuxBackend().scan_wifi()
+    assert results[0].capabilities == ""
+
+
+def test_linux_scan_wifi_returns_empty_on_nonzero_returncode():
+    with patch("backends.linux.subprocess.run") as mock_run:
+        mock_run.return_value.returncode = 1
+        mock_run.return_value.stdout = ""
+        assert LinuxBackend().scan_wifi() == []
+
+
+def test_linux_scan_wifi_returns_empty_when_nmcli_missing():
+    with patch("backends.linux.subprocess.run", side_effect=FileNotFoundError()):
+        assert LinuxBackend().scan_wifi() == []
