@@ -26,6 +26,10 @@ def main():
     parser.add_argument("--db",
                         default=str(Path.home() / "civops-data" / "civops.db"),
                         help="SQLite database path")
+    parser.add_argument("--web", action="store_true",
+                        help="Run web UI instead of TUI (open in Chrome)")
+    parser.add_argument("--port", type=int, default=8080,
+                        help="Web server port (default: 8080)")
     args = parser.parse_args()
 
     if args.backend == "termux":
@@ -45,11 +49,17 @@ def main():
     log_path = str(Path.home() / "civops-data" / f"civops-{ts}.jsonl")
     logger = JSONLLogger(log_path)
 
-    app = CivopsApp(
-        backend=backend, db=db, logger=logger,
-        session_id=session_id, scan_interval=args.interval,
-    )
-    app.run()
+    if args.web:
+        from ui.web import WebUI
+        ui = WebUI(backend=backend, db=db, logger=logger,
+                   session_id=session_id, scan_interval=args.interval)
+        ui.run(port=args.port)
+    else:
+        app = CivopsApp(
+            backend=backend, db=db, logger=logger,
+            session_id=session_id, scan_interval=args.interval,
+        )
+        app.run()
 
     db.close_session(session_id, kml_path="", gpx_path="")
     db.close()
