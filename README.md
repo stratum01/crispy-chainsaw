@@ -13,7 +13,7 @@ Built for two use cases:
 - Live WiFi and Bluetooth scanning with signal strength bars and color coding
 - GPS coordinates attached to every detection
 - OUI vendor lookup (bundled IEEE database — no network calls)
-- Three TUI modes: Radar (live tables), Log (event stream with filter/search), Map (ASCII GPS track)
+- Web UI served from Termux, viewable in any browser on the same device
 - Export to KML (Google Maps) and GPX (QGIS)
 - SQLite storage in WAL mode — survives incoming calls and app backgrounding
 - JSONL append log for easy post-processing
@@ -24,7 +24,7 @@ Built for two use cases:
 
 - Android phone with [Termux](https://f-droid.org/packages/com.termux/) and [Termux:API](https://f-droid.org/packages/com.termux.api/) installed from **F-Droid**
 - Python 3.11+
-- `textual` Python package
+- `flask` and `textual` Python packages
 
 > **Note:** Install Termux from F-Droid, not the Play Store. The Play Store version is outdated and no longer maintained.
 
@@ -34,22 +34,15 @@ Built for two use cases:
 
 ### Option A: Clone from GitHub
 
-The simplest method if you have a GitHub account.
-
-**On your computer — push the repo:**
-```bash
-cd /home/stratum/civops
-git remote add origin https://github.com/YOUR_USERNAME/civops.git
-git push -u origin HEAD
-```
-
 **On your phone in Termux:**
 ```bash
-pkg update && pkg install python git termux-api
-pip install textual
-git clone https://github.com/YOUR_USERNAME/civops.git
-cd civops
-python civops.py
+pkg update && pkg upgrade
+pkg install python git termux-api openssh
+pip install flask textual
+git clone https://github.com/stratum01/crispy-chainsaw.git
+cd crispy-chainsaw
+termux-setup-storage
+python civops.py --web
 ```
 
 ---
@@ -58,20 +51,20 @@ python civops.py
 
 Both devices must be on the same network.
 
-**On your computer — serve the project:**
+**On your computer:**
 ```bash
 ip addr | grep "inet " | grep -v 127    # note your IP, e.g. 192.168.1.42
-cd /home/stratum
+cd ~
 python3 -m http.server 8000
 ```
 
 **On your phone in Termux:**
 ```bash
 pkg update && pkg install python wget termux-api
-pip install textual
-wget -r -np -nH --cut-dirs=1 http://192.168.1.42:8000/civops/
-cd civops
-python civops.py
+pip install flask textual
+wget -r -np -nH --cut-dirs=1 http://192.168.1.42:8000/crispy-chainsaw/
+cd crispy-chainsaw
+python civops.py --web
 ```
 
 ---
@@ -82,8 +75,7 @@ Enable **USB debugging** on your phone first (Settings → Developer Options).
 
 **On your computer:**
 ```bash
-cd /home/stratum
-tar czf civops.tar.gz civops/ --exclude='civops/venv' --exclude='civops/__pycache__'
+tar czf civops.tar.gz crispy-chainsaw/ --exclude='__pycache__'
 adb push civops.tar.gz /data/data/com.termux/files/home/
 ```
 
@@ -91,31 +83,42 @@ adb push civops.tar.gz /data/data/com.termux/files/home/
 ```bash
 tar xzf civops.tar.gz
 pkg update && pkg install python termux-api
-pip install textual
-cd civops
-python civops.py
+pip install flask textual
+cd crispy-chainsaw
+python civops.py --web
 ```
 
 ---
 
 ### First-run setup (all methods)
 
-After installing, run this once to grant Termux storage access:
+Run this once to grant Termux storage access:
 ```bash
 termux-setup-storage
 ```
 
-On first scan, Android will prompt for **Location** and **Bluetooth** permissions — grant both. Precise location is required for WiFi scanning on Android 10+.
+Run these once to trigger Android permission prompts:
+```bash
+termux-wifi-scaninfo       # grants Location permission
+termux-location -p gps     # grants precise GPS access
+```
 
 ---
 
 ## Usage
 
 ```bash
-python civops.py                     # auto-detect backend, 5s scan interval
-python civops.py --interval 10       # scan every 10 seconds
-python civops.py --backend linux     # force Linux backend (desktop)
-python civops.py --db ~/my.db        # custom database path
+# Web UI — recommended (open http://localhost:8080 in Chrome)
+python civops.py --web
+python civops.py --web --port 9090    # custom port
+
+# Terminal UI (experimental)
+python civops.py
+
+# Options for both modes
+python civops.py --web --interval 10  # scan every 10 seconds
+python civops.py --web --db ~/my.db   # custom database path
+python civops.py --web --backend linux
 ```
 
 Session data is written to `~/civops-data/`:
@@ -124,36 +127,24 @@ Session data is written to `~/civops-data/`:
 
 ---
 
-## TUI Modes
+## Web UI
 
-Switch between modes with `r` / `l` / `m`. Press `q` to quit.
+Start the server, then open **http://localhost:8080** in Chrome on your phone.
 
-### Radar
-Live WiFi and Bluetooth tables, updated every scan cycle.
+The page refreshes every 5 seconds and shows:
+- WiFi networks sorted by signal strength with `▓` signal bars
+- Color coding: green ≥ -65 dBm, orange ≥ -80, red < -80
+- GPS fix with accuracy
+- Live event log (appeared / disappeared / RSSI changes)
 
-- Signal strength shown as `▓` bar (9 chars) + dBm value
-- Color coding: green ≥ -65 dBm, yellow ≥ -80, red < -80
-- Open networks flagged with `⚠`
-- Vendor column populated from bundled OUI database
+To run in the background while using your phone for other things:
 
-### Log
-Scrolling event stream of everything that happened this session.
-
-- `f` — cycle filter: all / wifi / bt / gps
-- `/` — search by SSID or address
-- `Esc` — clear search
-
-Event types: `[+WIFI]` `[-WIFI]` `[RSSI]` `[+BT]` `[-BT]` `[+BLE]` `[-BLE]` `[GPS]` `[EXPORT]`
-
-### Map
-ASCII rendering of your GPS track with detection sites overlaid.
-
-```
-  · path  ★ start  W wifi  B bt
+```bash
+nohup python civops.py --web > ~/civops-data/server.log 2>&1 &
+echo $!   # note the PID to kill it later
 ```
 
-- `k` — export KML to `~/civops-data/civops-TIMESTAMP.kml`
-- `g` — export GPX to `~/civops-data/civops-TIMESTAMP.gpx`
+Stop it with `kill <PID>` or `pkill -f civops.py`.
 
 ---
 
@@ -164,7 +155,7 @@ ASCII rendering of your GPS track with detection sites overlaid.
 | KML | Google Maps, Google Earth | WiFi/BT placemarks, GPS track as LineString |
 | GPX | QGIS, OsmAnd, Garmin | WiFi/BT waypoints, GPS track with elevation |
 
-Detections without GPS coordinates are excluded from exports.
+Exports are triggered via the TUI Map screen (`k` for KML, `g` for GPX) and saved to `~/civops-data/`.
 
 ---
 
@@ -174,9 +165,9 @@ The backend is the only platform-specific layer. To port to Linux desktop, imple
 
 | Termux API | Linux equivalent |
 |---|---|
-| `termux-wifi-scaninfo` | `iw dev <iface> scan` |
-| `termux-bluetooth-scan` | `hcitool scan` + `bluetoothctl` |
-| `termux-location -p gps` | `gpsd` + `gpspipe -w` |
+| `termux-wifi-scaninfo` | `sudo iw dev <iface> scan` or `nmcli dev wifi list` |
+| `termux-bluetooth-scan` | `bluetoothctl scan on` or `hcitool lescan` |
+| `termux-location -p gps` | `gpsd` + `gpspipe -w` (or omit for fixed location) |
 
 No other files need to change. Run with `--backend linux` once implemented.
 
@@ -189,7 +180,7 @@ backends/    platform I/O (Termux API subprocess calls)
 scanners/    normalize raw JSON → dataclasses, diff for events
 storage/     SQLite (WAL) + JSONL append log
 export/      KML and GPX generation
-ui/          Textual TUI — Radar / Log / Map screens
+ui/          web.py (Flask — primary), app.py (Textual TUI)
 ```
 
 ---
