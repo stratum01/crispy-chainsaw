@@ -1,5 +1,6 @@
 # tests/test_backends.py
 import json
+import subprocess
 from unittest.mock import patch, AsyncMock, MagicMock
 from backends.termux import TermuxBackend
 from backends.linux import LinuxBackend
@@ -114,4 +115,10 @@ def test_linux_scan_wifi_returns_empty_on_nonzero_returncode():
 
 def test_linux_scan_wifi_returns_empty_when_nmcli_missing():
     with patch("backends.linux.subprocess.run", side_effect=FileNotFoundError()):
+        assert LinuxBackend().scan_wifi() == []
+
+
+def test_linux_scan_wifi_returns_empty_on_timeout():
+    with patch("backends.linux.subprocess.run",
+               side_effect=subprocess.TimeoutExpired(cmd="nmcli", timeout=15)):
         assert LinuxBackend().scan_wifi() == []
