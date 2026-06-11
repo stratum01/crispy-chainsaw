@@ -161,5 +161,17 @@ def test_linux_scan_bluetooth_returns_empty_on_exception():
         assert LinuxBackend().scan_bluetooth() == []
 
 
+def test_linux_scan_bluetooth_none_rssi_defaults_to_minus_80():
+    mock_dev = MagicMock()
+    mock_dev.name = "UnknownRSSI"
+    mock_dev.address = "CC:DD:EE:FF:00:11"
+    mock_dev.rssi = None
+    with patch("backends.linux.BleakScanner.discover",
+               new_callable=AsyncMock) as mock_disc:
+        mock_disc.return_value = [mock_dev]
+        results = LinuxBackend().scan_bluetooth()
+    assert results[0].rssi == -80
+
+
 def test_linux_get_location_returns_none():
     assert LinuxBackend().get_location() is None
